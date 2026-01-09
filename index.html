@@ -21,10 +21,6 @@
 
         body {
             background: #0A0A0A;
-            background-image: 
-                radial-gradient(ellipse at 50% 50%, rgba(255, 106, 0, 0.03) 0%, transparent 50%),
-                radial-gradient(ellipse at 80% 20%, rgba(255, 106, 0, 0.02) 0%, transparent 40%),
-                radial-gradient(ellipse at 20% 80%, rgba(255, 106, 0, 0.02) 0%, transparent 40%);
             font-family: 'Syne', sans-serif;
             display: flex;
             align-items: center;
@@ -32,18 +28,23 @@
             min-height: 100vh;
         }
 
-        .container {
-            text-align: center;
-            animation: float 6s ease-in-out infinite;
+        .dot-grid {
+            position: fixed;
+            top: -10%;
+            left: -10%;
+            width: 120%;
+            height: 120%;
+            background-image: radial-gradient(circle, rgba(255, 255, 255, 0.15) 1px, transparent 1px);
+            background-size: 32px 32px;
+            pointer-events: none;
+            will-change: transform;
+            transition: transform 0.1s ease-out;
         }
 
-        @keyframes float {
-            0%, 100% {
-                transform: translateY(0px);
-            }
-            50% {
-                transform: translateY(-12px);
-            }
+        .container {
+            text-align: center;
+            will-change: transform;
+            transition: transform 0.08s ease-out;
         }
 
         .timer {
@@ -129,7 +130,8 @@
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="dot-grid" id="dotGrid"></div>
+    <div class="container" id="timerContainer">
         <div class="timer">
             <div class="time-unit">
                 <span class="time-value" id="hours">00</span>
@@ -153,8 +155,37 @@
     </div>
 
     <script>
-        // Start time: January 8th, 2026 at 7:00:00.000 AM local time
-        const startTime = new Date(2026, 0, 8, 7, 0, 0, 0).getTime();
+        // Parallax effect
+        const dotGrid = document.getElementById('dotGrid');
+        const timerContainer = document.getElementById('timerContainer');
+
+        document.addEventListener('mousemove', (e) => {
+            const centerX = window.innerWidth / 2;
+            const centerY = window.innerHeight / 2;
+            
+            const mouseX = e.clientX - centerX;
+            const mouseY = e.clientY - centerY;
+            
+            // Background moves slower (parallax)
+            const bgX = mouseX * 0.02;
+            const bgY = mouseY * 0.02;
+            
+            // Foreground moves faster
+            const fgX = mouseX * 0.05;
+            const fgY = mouseY * 0.05;
+            
+            dotGrid.style.transform = `translate(${bgX}px, ${bgY}px)`;
+            timerContainer.style.transform = `translate(${fgX}px, ${fgY}px)`;
+        });
+
+        // Reset on mouse leave
+        document.addEventListener('mouseleave', () => {
+            dotGrid.style.transform = 'translate(0px, 0px)';
+            timerContainer.style.transform = 'translate(0px, 0px)';
+        });
+
+        // Start time: January 8th, 2026 at 7:00:00.000 PM local time
+        const startTime = new Date(2026, 0, 8, 19, 0, 0, 0).getTime();
 
         const hoursEl = document.getElementById('hours');
         const minutesEl = document.getElementById('minutes');
