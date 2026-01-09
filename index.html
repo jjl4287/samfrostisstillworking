@@ -54,6 +54,7 @@
             letter-spacing: 0.05em;
             margin-bottom: 3rem;
             font-style: italic;
+            transition: opacity 0.5s ease, transform 0.5s ease;
         }
 
         .timer {
@@ -62,12 +63,14 @@
             align-items: flex-end;
             justify-content: center;
             flex-wrap: wrap;
+            transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s ease;
         }
 
         .time-unit {
             display: flex;
             flex-direction: column;
             align-items: center;
+            min-width: 2ch;
         }
 
         .time-value {
@@ -81,6 +84,9 @@
             font-variant-numeric: tabular-nums;
             line-height: 1;
             letter-spacing: -0.02em;
+            min-width: 2.2ch;
+            display: inline-block;
+            text-align: center;
         }
 
         .time-label {
@@ -115,10 +121,113 @@
             text-shadow: 
                 0 0 15px rgba(255, 106, 0, 0.3),
                 0 0 30px rgba(255, 106, 0, 0.15);
+            min-width: 3.5ch;
         }
 
         .milliseconds {
             margin-left: 0.5rem;
+        }
+
+        /* Stop Button */
+        .stop-button {
+            margin-top: 4rem;
+            padding: 1.2rem 2.5rem;
+            font-family: 'Syne', sans-serif;
+            font-size: clamp(1rem, 2.5vw, 1.3rem);
+            font-weight: 700;
+            color: #0A0A0A;
+            background: #FF6A00;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 
+                0 0 20px rgba(255, 106, 0, 0.4),
+                0 0 40px rgba(255, 106, 0, 0.2);
+        }
+
+        .stop-button:hover {
+            transform: scale(1.05);
+            box-shadow: 
+                0 0 30px rgba(255, 106, 0, 0.6),
+                0 0 60px rgba(255, 106, 0, 0.3);
+        }
+
+        .stop-button:active {
+            transform: scale(0.98);
+        }
+
+        .stop-button.hidden {
+            opacity: 0;
+            transform: scale(0.8);
+            pointer-events: none;
+        }
+
+        /* Summary */
+        .summary {
+            margin-top: 3rem;
+            opacity: 0;
+            transform: translateY(30px);
+            transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+            pointer-events: none;
+        }
+
+        .summary.visible {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+
+        .summary-title {
+            font-size: clamp(1.5rem, 4vw, 2.5rem);
+            font-weight: 800;
+            color: #FF6A00;
+            text-shadow: 
+                0 0 20px rgba(255, 106, 0, 0.5),
+                0 0 40px rgba(255, 106, 0, 0.3);
+            margin-bottom: 1.5rem;
+        }
+
+        .summary-text {
+            font-size: clamp(1rem, 2.5vw, 1.4rem);
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.7);
+            line-height: 1.8;
+        }
+
+        .summary-text span {
+            color: #FF6A00;
+            font-weight: 700;
+        }
+
+        /* Confetti */
+        .confetti {
+            position: fixed;
+            width: 10px;
+            height: 10px;
+            top: -10px;
+            opacity: 0;
+            pointer-events: none;
+            animation: confetti-fall linear forwards;
+        }
+
+        @keyframes confetti-fall {
+            0% {
+                opacity: 1;
+                transform: translateY(0) rotate(0deg);
+            }
+            100% {
+                opacity: 0;
+                transform: translateY(100vh) rotate(720deg);
+            }
+        }
+
+        /* Stopped state */
+        .timer.stopped .separator {
+            animation: none;
+            opacity: 0.5;
         }
 
         @media (max-width: 600px) {
@@ -135,6 +244,11 @@
                 margin-left: 0;
                 margin-top: 1rem;
             }
+
+            .stop-button {
+                margin-top: 3rem;
+                padding: 1rem 2rem;
+            }
         }
     </style>
 </head>
@@ -142,7 +256,7 @@
     <div class="dot-grid" id="dotGrid"></div>
     <div class="container" id="timerContainer">
         <p class="subtitle">I feel bad but honestly I think this bit should cheer him up</p>
-        <div class="timer">
+        <div class="timer" id="timer">
             <div class="time-unit">
                 <span class="time-value" id="hours">00</span>
                 <span class="time-label">Hours</span>
@@ -161,6 +275,11 @@
                 <span class="time-value" id="milliseconds">000</span>
                 <span class="time-label">Milliseconds</span>
             </div>
+        </div>
+        <button class="stop-button" id="stopButton">Sam Frost is no longer working.</button>
+        <div class="summary" id="summary">
+            <h2 class="summary-title">Freedom!</h2>
+            <p class="summary-text" id="summaryText"></p>
         </div>
     </div>
 
@@ -201,12 +320,22 @@
         const minutesEl = document.getElementById('minutes');
         const secondsEl = document.getElementById('seconds');
         const millisecondsEl = document.getElementById('milliseconds');
+        const timerEl = document.getElementById('timer');
+        const stopButton = document.getElementById('stopButton');
+        const summary = document.getElementById('summary');
+        const summaryText = document.getElementById('summaryText');
+
+        let animationId = null;
+        let isRunning = true;
+        let finalElapsed = 0;
 
         function pad(num, size) {
             return String(num).padStart(size, '0');
         }
 
         function updateTimer() {
+            if (!isRunning) return;
+
             const now = Date.now();
             let elapsed = now - startTime;
 
@@ -214,6 +343,8 @@
             if (elapsed < 0) {
                 elapsed = 0;
             }
+
+            finalElapsed = elapsed;
 
             const totalSeconds = Math.floor(elapsed / 1000);
             const totalMinutes = Math.floor(totalSeconds / 60);
@@ -228,12 +359,77 @@
             secondsEl.textContent = pad(secs, 2);
             millisecondsEl.textContent = pad(ms, 3);
 
-            requestAnimationFrame(updateTimer);
+            animationId = requestAnimationFrame(updateTimer);
         }
 
+        // Confetti creation
+        function createConfetti() {
+            const colors = ['#FF6A00', '#FF8C00', '#FFA500', '#FFD700', '#FFFFFF', '#FF4500'];
+            const shapes = ['square', 'circle'];
+            
+            for (let i = 0; i < 150; i++) {
+                setTimeout(() => {
+                    const confetti = document.createElement('div');
+                    confetti.className = 'confetti';
+                    confetti.style.left = Math.random() * 100 + 'vw';
+                    confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                    confetti.style.width = (Math.random() * 10 + 5) + 'px';
+                    confetti.style.height = (Math.random() * 10 + 5) + 'px';
+                    confetti.style.borderRadius = shapes[Math.floor(Math.random() * shapes.length)] === 'circle' ? '50%' : '2px';
+                    confetti.style.animationDuration = (Math.random() * 2 + 2) + 's';
+                    confetti.style.animationDelay = (Math.random() * 0.5) + 's';
+                    
+                    document.body.appendChild(confetti);
+                    
+                    // Remove after animation
+                    setTimeout(() => confetti.remove(), 5000);
+                }, i * 20);
+            }
+        }
+
+        // Stop button handler
+        stopButton.addEventListener('click', () => {
+            isRunning = false;
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+            }
+
+            // Add stopped class
+            timerEl.classList.add('stopped');
+            
+            // Hide button
+            stopButton.classList.add('hidden');
+
+            // Calculate final summary
+            const totalSeconds = Math.floor(finalElapsed / 1000);
+            const totalMinutes = Math.floor(totalSeconds / 60);
+            const totalHours = Math.floor(totalMinutes / 60);
+            const ms = finalElapsed % 1000;
+            const secs = totalSeconds % 60;
+            const mins = totalMinutes % 60;
+
+            // Create summary text
+            summaryText.innerHTML = `
+                Sam Frost worked for<br>
+                <span>${totalHours}</span> hours, 
+                <span>${mins}</span> minutes, 
+                <span>${secs}</span> seconds, and 
+                <span>${ms}</span> milliseconds.
+            `;
+
+            // Show summary with delay
+            setTimeout(() => {
+                summary.classList.add('visible');
+            }, 300);
+
+            // Trigger confetti
+            setTimeout(() => {
+                createConfetti();
+            }, 100);
+        });
+
         // Start the timer
-        requestAnimationFrame(updateTimer);
+        animationId = requestAnimationFrame(updateTimer);
     </script>
 </body>
 </html>
-
